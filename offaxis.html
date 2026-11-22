@@ -1,0 +1,2459 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Off-Axis Projection (Head-Coupled Perspective)</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --swiss-black: #FFFFFF;
+      --swiss-white: #0A0A0A;
+      --swiss-paper: #1A1917;
+      /* alternate section bands */
+      --swiss-grey: #808080;
+      /* dividers and disabled states only, never text */
+      --swiss-tan: #B38B6D;
+      /* sparing accent rules and hovers, never text */
+      --swiss-text: #B4BBC5;
+      /* secondary text */
+      --swiss-rule: #262626;
+      /* 1px section dividers */
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      overflow: hidden;
+      background-color: #080808;
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: var(--swiss-black);
+      line-height: 1.6;
+      user-select: none;
+    }
+
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+    }
+
+    h1,
+    h2 {
+      font-weight: 300;
+      letter-spacing: -0.01em;
+      line-height: 1.1;
+    }
+
+    .eyebrow,
+    summary.section-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--swiss-text);
+    }
+
+    .band,
+    .status {
+      background: var(--swiss-paper);
+    }
+
+    /* Thin 2px black top rules replace card borders and shadows */
+    .card,
+    #hud,
+    #ui-tooltip,
+    #webcam-container {
+      background: var(--swiss-white);
+      color: var(--swiss-black);
+      border: 1px solid var(--swiss-rule);
+      border-top: 2px solid var(--swiss-black);
+      border-radius: 0;
+      box-shadow: none;
+      transition: border-color 200ms ease, opacity 200ms ease, transform 200ms ease;
+    }
+
+    .card:hover,
+    #hud:hover,
+    #webcam-container:hover {
+      border-top-color: var(--swiss-tan);
+    }
+
+    /* Toggle Options Button */
+    #btn-toggle-hud {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      z-index: 20;
+      width: auto;
+      flex: none;
+      padding: 8px 14px;
+      background: var(--swiss-white);
+      border: 1px solid var(--swiss-black);
+      border-top: 2px solid var(--swiss-black);
+      border-radius: 0;
+      color: var(--swiss-black);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
+    }
+
+    #btn-toggle-hud:hover {
+      background: var(--swiss-paper);
+      border-top-color: var(--swiss-tan);
+    }
+
+    /* Top-Right Configurable Title Overlay */
+    #title-overlay {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      z-index: 15;
+      width: 40%;
+      font-family: Georgia, "Times New Roman", Times, serif;
+      font-style: italic;
+      font-size: 60px;
+      line-height: 1.15;
+      color: #FFFFFF;
+      text-align: right;
+      overflow-wrap: break-word;
+      word-break: break-word;
+      white-space: pre-wrap;
+      pointer-events: none;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85), 0 1px 3px rgba(0, 0, 0, 0.95);
+    }
+
+    #title-overlay.hidden {
+      display: none;
+    }
+
+    /* HUD & Controls Panel */
+    #hud {
+      position: absolute;
+      top: 58px;
+      left: 16px;
+      width: 345px;
+      max-height: calc(100vh - 74px);
+      overflow-y: auto;
+      padding: 18px 16px;
+      font-size: 13px;
+      z-index: 10;
+    }
+
+    #hud.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-8px);
+    }
+
+    #hud::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    #hud::-webkit-scrollbar-track {
+      background: var(--swiss-paper);
+    }
+
+    #hud::-webkit-scrollbar-thumb {
+      background: var(--swiss-grey);
+      border-radius: 0;
+    }
+
+    #hud h1 {
+      font-size: 18px;
+      font-weight: 300;
+      letter-spacing: -0.01em;
+      line-height: 1.1;
+      margin-bottom: 12px;
+      color: var(--swiss-black);
+    }
+
+    /* Collapsible Sections */
+    details.hud-section {
+      margin-top: 12px;
+      border-top: 1px solid var(--swiss-rule);
+      padding-top: 8px;
+    }
+
+    details.hud-section:first-of-type {
+      margin-top: 6px;
+    }
+
+    summary.section-title {
+      padding: 4px 2px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: color 200ms ease;
+    }
+
+    summary.section-title::-webkit-details-marker {
+      display: none;
+    }
+
+    summary.section-title:hover {
+      color: var(--swiss-black);
+    }
+
+    summary.section-title::after {
+      content: "▾";
+      font-size: 12px;
+      color: var(--swiss-text);
+      transition: transform 200ms ease;
+    }
+
+    details.hud-section:not([open]) summary.section-title {
+      margin-bottom: 0;
+    }
+
+    details.hud-section:not([open]) summary.section-title::after {
+      transform: rotate(-90deg);
+    }
+
+    .status {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11.5px;
+      padding: 8px 10px;
+      border-top: 2px solid var(--swiss-black);
+      border-radius: 0;
+      margin-bottom: 12px;
+      color: var(--swiss-black);
+      word-break: break-word;
+      line-height: 1.45;
+    }
+
+    .control-group {
+      margin-bottom: 9px;
+      padding: 4px 6px;
+      border-radius: 0;
+      transition: background-color 200ms ease;
+    }
+
+    .control-group:hover,
+    .checkbox-row:hover {
+      background: var(--swiss-paper);
+    }
+
+    .control-group label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 3px;
+      color: var(--swiss-black);
+      font-size: 12px;
+    }
+
+    .control-group label span.val {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: var(--swiss-text);
+      font-weight: 600;
+    }
+
+    .control-group input[type="range"] {
+      width: 100%;
+      accent-color: var(--swiss-black);
+      cursor: pointer;
+    }
+
+    .control-group select,
+    .control-group input[type="file"],
+    .control-group input[type="text"] {
+      width: 100%;
+      padding: 6px 8px;
+      background: var(--swiss-white);
+      color: var(--swiss-black);
+      border: 1px solid var(--swiss-black);
+      border-radius: 0;
+      font-family: inherit;
+      font-size: 12px;
+      outline: none;
+      transition: border-color 200ms ease;
+    }
+
+    .control-group select:hover,
+    .control-group input[type="file"]:hover,
+    .control-group input[type="text"]:hover {
+      border-color: var(--swiss-tan);
+    }
+
+    .control-group select,
+    .control-group input[type="file"] {
+      cursor: pointer;
+    }
+
+    .control-group input[type="text"] {
+      cursor: text;
+      user-select: text;
+    }
+
+    .inline-slider-color {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .inline-slider-color input[type="range"] {
+      flex: 1;
+    }
+
+    input[type="color"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 26px;
+      height: 22px;
+      border: 1px solid var(--swiss-black);
+      border-radius: 0;
+      background: var(--swiss-white);
+      cursor: pointer;
+      padding: 0;
+      flex: 0 0 auto;
+      transition: border-color 200ms ease;
+    }
+
+    input[type="color"]:hover {
+      border-color: var(--swiss-tan);
+    }
+
+    input[type="color"]::-webkit-color-swatch-wrapper {
+      padding: 1px;
+    }
+
+    input[type="color"]::-webkit-color-swatch {
+      border: none;
+      border-radius: 0;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 6px;
+      border-radius: 0;
+      font-size: 12px;
+      color: var(--swiss-black);
+      cursor: pointer;
+      transition: background-color 200ms ease;
+    }
+
+    .checkbox-row input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      accent-color: var(--swiss-black);
+      cursor: pointer;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      margin-bottom: 4px;
+    }
+
+    .button,
+    button {
+      flex: 1;
+      padding: 8px 10px;
+      border: 1px solid var(--swiss-black);
+      border-radius: 0;
+      background: var(--swiss-black);
+      color: var(--swiss-white);
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
+    }
+
+    .button:hover,
+    button:hover {
+      background: #E5E5E5;
+    }
+
+    .button--outline,
+    button.secondary,
+    button.danger {
+      background: transparent;
+      color: var(--swiss-black);
+      border: 1px solid var(--swiss-black);
+    }
+
+    .button--outline:hover,
+    button.secondary:hover,
+    button.danger:hover {
+      background: var(--swiss-black);
+      color: var(--swiss-white);
+    }
+
+    button:disabled {
+      background: var(--swiss-paper);
+      color: var(--swiss-text);
+      border-color: var(--swiss-grey);
+      cursor: not-allowed;
+    }
+
+    a:focus-visible,
+    .button:focus-visible,
+    button:focus-visible,
+    summary:focus-visible,
+    select:focus-visible,
+    input:focus-visible {
+      outline: 2px solid var(--swiss-black);
+      outline-offset: 2px;
+    }
+
+    /* Right-Anchored Floating Tooltip Card */
+    #ui-tooltip {
+      position: fixed;
+      left: 375px;
+      top: 60px;
+      width: 250px;
+      padding: 12px 14px;
+      color: var(--swiss-text);
+      font-size: 12px;
+      line-height: 1.5;
+      z-index: 30;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateX(-4px);
+    }
+
+    #ui-tooltip.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    #ui-tooltip .tt-title {
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--swiss-black);
+      margin-bottom: 4px;
+      font-size: 11px;
+    }
+
+    /* Dropzone overlay */
+    #drop-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 10, 10, 0.92);
+      border: 2px solid var(--swiss-black);
+      border-top: 4px solid var(--swiss-tan);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      pointer-events: none;
+      font-size: 18px;
+      font-weight: 300;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--swiss-black);
+      text-align: center;
+      padding: 24px;
+    }
+
+    #drop-overlay.active {
+      display: flex;
+    }
+
+    /* Webcam Preview */
+    #webcam-container {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      width: 210px;
+      height: 158px;
+      overflow: hidden;
+      z-index: 10;
+    }
+
+    #webcam-container.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(8px);
+    }
+
+    #webcam {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+      /* Mirror preview */
+    }
+
+    #overlay-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transform: scaleX(-1);
+      pointer-events: none;
+    }
+
+    #webcam-badge {
+      position: absolute;
+      bottom: 6px;
+      left: 8px;
+      font-size: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: var(--swiss-paper);
+      color: var(--swiss-black);
+      border-top: 2px solid var(--swiss-black);
+      padding: 2px 6px;
+      border-radius: 0;
+      pointer-events: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+
+      .card,
+      .button,
+      #hud,
+      #btn-toggle-hud,
+      #ui-tooltip,
+      #webcam-container,
+      button,
+      .control-group,
+      .checkbox-row,
+      summary.section-title,
+      summary.section-title::after,
+      select,
+      input {
+        transition: none;
+      }
+    }
+  </style>
+
+  <!-- ES Module Import Map -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+        "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs"
+      }
+    }
+  </script>
+</head>
+
+<body>
+
+  <div id="canvas-container"></div>
+  <div id="drop-overlay">Drop .ZIP (glTF / OBJ), .GLB, .GLTF, .OBJ, .MTL, or Texture files to import</div>
+
+  <button id="btn-toggle-hud" class="button button--outline" aria-label="Show or hide Options Panel"
+    title="Show or hide the Options Panel (Keyboard shortcut: H)">
+    <span id="toggle-icon" aria-hidden="true">▾</span> Options Panel (H)
+  </button>
+
+  <div id="title-overlay">Digitalt Kulturarv Sydost</div>
+
+  <div id="ui-tooltip" class="card" role="tooltip">
+    <div class="tt-title eyebrow" id="tt-title">Option</div>
+    <div id="tt-body">Explanation</div>
+  </div>
+
+  <div id="hud" class="card">
+    <h1>Off-Axis Projection Demo</h1>
+    <div id="status-readout" class="status band">Mode: Mouse Fallback (Move cursor / Scroll Z)</div>
+
+    <!-- Section 1: Webcam & Tracking -->
+    <details class="hud-section" open>
+      <summary class="section-title">Webcam & Head Tracking</summary>
+
+      <div class="btn-row">
+        <button id="btn-webcam" data-tooltip-title="Start Face Tracking"
+          data-tooltip="Activates your webcam and uses MediaPipe iris detection to track your 3D eye position in real time.">Start
+          Face Tracking</button>
+        <button id="btn-mode" class="secondary" data-tooltip-title="Mouse Mode"
+          data-tooltip="Stops the webcam stream and lets you simulate eye position using mouse movement (X/Y) and the scroll wheel (Z distance).">Mouse
+          Mode</button>
+      </div>
+
+      <div class="control-group" style="margin-top: 8px;" data-tooltip-title="Camera Device"
+        data-tooltip="Choose which connected video camera to use for face tracking, or click Switch to cycle through cameras.">
+        <label for="sel-camera"><span>Camera Device</span></label>
+        <div style="display: flex; gap: 6px;">
+          <select id="sel-camera" style="flex: 1;">
+            <option value="">Default Webcam</option>
+          </select>
+          <button id="btn-next-cam" class="secondary" style="flex: 0 0 auto; padding: 6px 10px;"
+            data-tooltip-title="Switch Camera"
+            data-tooltip="Cycles to the next available webcam connected to your system.">Switch</button>
+        </div>
+      </div>
+
+      <label class="checkbox-row" for="chk-preview" data-tooltip-title="Show Webcam Preview"
+        data-tooltip="Shows or hides the mirrored camera feed and iris tracking overlay in the bottom-right corner without interrupting head tracking.">
+        <span>Show Webcam Preview</span>
+        <input type="checkbox" id="chk-preview" checked>
+      </label>
+    </details>
+
+    <!-- Section 2: Scene & Background Grid -->
+    <details class="hud-section" open>
+      <summary class="section-title">Environment</summary>
+
+      <label class="checkbox-row" for="chk-grid" data-tooltip-title="Show Background Grid / Room"
+        data-tooltip="Toggles visibility of the 3D wireframe window-box and back wall grid that provide strong off-axis parallax depth cues.">
+        <span>Show Background Grid / Room</span>
+        <input type="checkbox" id="chk-grid" checked>
+      </label>
+
+      <div class="control-group" data-tooltip-title="Room Depth (cm)"
+        data-tooltip="Controls how deep (in centimeters) the virtual wireframe room extends behind your screen plane (Z = 0).">
+        <label><span>Room Depth (cm)</span><span class="val" id="val-depth">50.0</span></label>
+        <input type="range" id="inp-depth" min="15" max="150" step="1" value="50">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Grid Color"
+        data-tooltip="Sets the color of the 3D room wireframe slices, corner rails, and back wall grid.">
+        <label for="inp-grid-color">
+          <span>Grid Color</span>
+          <span style="display: flex; align-items: center; gap: 6px;">
+            <span class="val" id="val-grid-color">#525252</span>
+            <input type="color" id="inp-grid-color" value="#525252" title="Grid Color" aria-label="Grid Color">
+          </span>
+        </label>
+      </div>
+
+      <div class="control-group" data-tooltip-title="Background Color"
+        data-tooltip="Sets the background color of the 3D viewport behind the room and model.">
+        <label for="inp-bg-color">
+          <span>Background Color</span>
+          <span style="display: flex; align-items: center; gap: 6px;">
+            <span class="val" id="val-bg-color">#080808</span>
+            <input type="color" id="inp-bg-color" value="#080808" title="Background Color"
+              aria-label="Background Color">
+          </span>
+        </label>
+      </div>
+
+      <div class="control-group" data-tooltip-title="Title Text"
+        data-tooltip="Sets the title shown in the top-right field. Leave empty to hide the title overlay.">
+        <label for="inp-title-text"><span>Title Text</span></label>
+        <input type="text" id="inp-title-text" value="Digitalt Kulturarv Sydost"
+          placeholder="Enter title to display...">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Title Typeface"
+        data-tooltip="Selects the font family for the top-right title overlay (default Serif).">
+        <label for="sel-title-font"><span>Title Typeface</span></label>
+        <select id="sel-title-font">
+          <option value="serif" selected>Serif (Default)</option>
+          <option value="sans-serif">Sans-Serif</option>
+          <option value="monospace">Monospace</option>
+          <option value="cursive">Cursive</option>
+          <option value="fantasy">Fantasy</option>
+        </select>
+      </div>
+
+      <label class="checkbox-row" for="chk-title-bold" data-tooltip-title="Bold Title"
+        data-tooltip="Toggles bold font weight on the top-right title text.">
+        <span>Bold Title</span>
+        <input type="checkbox" id="chk-title-bold">
+      </label>
+
+      <label class="checkbox-row" for="chk-title-italic" data-tooltip-title="Italic Title"
+        data-tooltip="Toggles italic font style on the top-right title text.">
+        <span>Italic Title</span>
+        <input type="checkbox" id="chk-title-italic" checked>
+      </label>
+
+      <div class="control-group" data-tooltip-title="Title Size (px)"
+        data-tooltip="Sets the font size in pixels for the top-right title overlay (default 60 px).">
+        <label><span>Title Size (px)</span><span class="val" id="val-title-size">60px</span></label>
+        <input type="range" id="inp-title-size" min="12" max="120" step="1" value="60">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Title Width (%)"
+        data-tooltip="Sets the width of the top-right title field as a percentage of the viewport width (default 40%).">
+        <label><span>Title Width (%)</span><span class="val" id="val-title-width">40%</span></label>
+        <input type="range" id="inp-title-width" min="10" max="80" step="1" value="40">
+      </div>
+    </details>
+
+    <!-- Section 3: Off-Axis Calibration -->
+    <details class="hud-section" open>
+      <summary class="section-title">Off-Axis Calibration</summary>
+
+      <div class="control-group" data-tooltip-title="Physical Screen Width (cm)"
+        data-tooltip="Set this to the real physical width of your display area in centimeters so the virtual frustum matches your physical monitor size.">
+        <label><span>Physical Screen Width (cm)</span><span class="val" id="val-width">34.5</span></label>
+        <input type="range" id="inp-width" min="15" max="250" step="0.5" value="34.5">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Webcam X-Offset (cm)"
+        data-tooltip="Horizontal offset (cm) of your camera lens from the horizontal center of your screen (negative = left, positive = right).">
+        <label><span>Webcam X-Offset (cm)</span><span class="val" id="val-xoffset">0.0</span></label>
+        <input type="range" id="inp-xoffset" min="-120" max="120" step="0.5" value="0.0">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Webcam Y-Offset (cm)"
+        data-tooltip="Vertical offset (cm) of your camera lens from the vertical center of your screen (positive = camera is above the center of the screen).">
+        <label><span>Webcam Y-Offset (cm)</span><span class="val" id="val-yoffset">9.5</span></label>
+        <input type="range" id="inp-yoffset" min="-100" max="100" step="0.5" value="9.5">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Eye Distance Calibration Scale"
+        data-tooltip="Calibration factor used to estimate your viewing distance (Z in cm) from the apparent distance between your irises in the webcam frame.">
+        <label><span>Eye Distance Calibration Scale</span><span class="val" id="val-zscale">4.2</span></label>
+        <input type="range" id="inp-zscale" min="2.0" max="8.0" step="0.1" value="4.2">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Tracking Sensitivity"
+        data-tooltip="Scales how strongly lateral head movements shift the off-axis perspective.">
+        <label><span>Tracking Sensitivity</span><span class="val" id="val-sens">1.1</span></label>
+        <input type="range" id="inp-sens" min="0.3" max="3.0" step="0.1" value="1.1">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Smoothing (Lerp)"
+        data-tooltip="Controls temporal smoothing of eye tracking. Lower values produce smoother, damped motion; 1.0 gives raw, immediate response.">
+        <label><span>Smoothing (Lerp)</span><span class="val" id="val-lerp">0.20</span></label>
+        <input type="range" id="inp-lerp" min="0.02" max="1.0" step="0.02" value="0.20">
+      </div>
+    </details>
+
+    <!-- Section 4: Lighting Controls -->
+    <details class="hud-section" open>
+      <summary class="section-title">Lighting</summary>
+
+      <div class="control-group" data-tooltip-title="Lighting Preset"
+        data-tooltip="Applies a curated lighting setup (Studio, Warm Museum, Dramatic high-contrast, or Neutral flat illumination).">
+        <label for="sel-light-preset"><span>Lighting Preset</span></label>
+        <select id="sel-light-preset">
+          <option value="studio" selected>Studio (Default)</option>
+          <option value="museum">Warm Museum</option>
+          <option value="dramatic">Dramatic Contrast</option>
+          <option value="neutral">Neutral Inspection</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+
+      <div class="control-group" data-tooltip-title="Ambient Light"
+        data-tooltip="Controls the omnidirectional base light intensity and color tint that evenly illuminates all surfaces and shadows.">
+        <label><span>Ambient Light</span><span class="val" id="val-amb-int">0.65</span></label>
+        <div class="inline-slider-color">
+          <input type="range" id="inp-amb-int" min="0" max="3.0" step="0.05" value="0.65"
+            aria-label="Ambient Light Intensity">
+          <input type="color" id="inp-amb-color" value="#ffffff" title="Ambient Light Color"
+            aria-label="Ambient Light Color">
+        </div>
+      </div>
+
+      <div class="control-group" data-tooltip-title="Key Light Intensity & Color"
+        data-tooltip="Controls the brightness and color of the main directional light source that casts primary highlights and shadows.">
+        <label><span>Key Light Intensity</span><span class="val" id="val-key-int">1.80</span></label>
+        <div class="inline-slider-color">
+          <input type="range" id="inp-key-int" min="0" max="5.0" step="0.05" value="1.80"
+            aria-label="Key Light Intensity">
+          <input type="color" id="inp-key-color" value="#ffffff" title="Key Light Color" aria-label="Key Light Color">
+        </div>
+      </div>
+
+      <div class="control-group" data-tooltip-title="Key Light Position X (cm)"
+        data-tooltip="Moves the main key light horizontally left (-) or right (+). A 3D indicator briefly appears in the room while dragging.">
+        <label><span>Key Light X (cm)</span><span class="val" id="val-key-x">12.0</span></label>
+        <input type="range" id="inp-key-x" min="-50" max="50" step="1" value="12">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Key Light Position Y (cm)"
+        data-tooltip="Moves the main key light vertically down (-) or up (+). A 3D indicator briefly appears in the room while dragging.">
+        <label><span>Key Light Y (cm)</span><span class="val" id="val-key-y">16.0</span></label>
+        <input type="range" id="inp-key-y" min="-50" max="50" step="1" value="16">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Key Light Position Z (cm)"
+        data-tooltip="Moves the main key light deeper behind the screen (-) or in front of the screen (+). A 3D indicator briefly appears while dragging.">
+        <label><span>Key Light Z (cm)</span><span class="val" id="val-key-z">20.0</span></label>
+        <input type="range" id="inp-key-z" min="-50" max="60" step="1" value="20">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Fill Light Intensity & Color"
+        data-tooltip="Controls the secondary angled fill light that softens dark shadow areas opposite the key light.">
+        <label><span>Fill Light Intensity</span><span class="val" id="val-fill-int">1.00</span></label>
+        <div class="inline-slider-color">
+          <input type="range" id="inp-fill-int" min="0" max="3.0" step="0.05" value="1.00"
+            aria-label="Fill Light Intensity">
+          <input type="color" id="inp-fill-color" value="#ffffff" title="Fill Light Color"
+            aria-label="Fill Light Color">
+        </div>
+      </div>
+
+      <div class="control-group" data-tooltip-title="Rim / Back Light Intensity"
+        data-tooltip="Controls the rear rim light intensity to accentuate the silhouette and edges of the 3D model.">
+        <label><span>Rim Light Intensity</span><span class="val" id="val-rim-int">0.60</span></label>
+        <input type="range" id="inp-rim-int" min="0" max="3.0" step="0.05" value="0.60">
+      </div>
+
+      <label class="checkbox-row" for="chk-shadows" data-tooltip-title="Cast Shadows"
+        data-tooltip="Enables or disables real-time soft shadow casting from the Key Light across the 3D model.">
+        <span>Cast Shadows</span>
+        <input type="checkbox" id="chk-shadows" checked>
+      </label>
+    </details>
+
+    <!-- Section 5: 3D Model Import & Adjustments -->
+    <details class="hud-section" open>
+      <summary class="section-title">3D Model & Adjustments</summary>
+
+      <div class="control-group" data-tooltip-title="Upload 3D Model / Archive"
+        data-tooltip="Select or drag & drop a .zip archive (containing glTF or OBJ + textures), .glb, .gltf, or .obj + .mtl + texture images (.png/.jpg/.webp). You can also drop .mtl/textures onto an already loaded OBJ.">
+        <label for="inp-obj"><span>Upload .ZIP (glTF/OBJ), .GLB, .OBJ, .MTL, Textures</span></label>
+        <input type="file" id="inp-obj" accept=".zip,.glb,.gltf,.bin,.obj,.mtl,.png,.jpg,.jpeg,.webp,.bmp" multiple>
+      </div>
+
+      <div id="model-info" class="status" style="margin-bottom: 8px;">No model loaded</div>
+
+      <div class="control-group" data-tooltip-title="Slow Turntable Rotation (CW / CCW)"
+        data-tooltip="Continuously rotates the model in the viewport. Drag left (< 0) for Counter-Clockwise (CCW ↺), center (0) to stop, or right (> 0) for Clockwise (CW ↻). Double-click slider to stop.">
+        <label><span>Turntable Rotation</span><span class="val" id="val-rotspeed">0°/s (Off)</span></label>
+        <input type="range" id="inp-rotspeed" min="-60" max="60" step="1" value="0">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Model Scale"
+        data-tooltip="Uniformly scales the loaded 3D model relative to its auto-fitted size.">
+        <label><span>Model Scale</span><span class="val" id="val-scale">1.00x</span></label>
+        <input type="range" id="inp-scale" min="0.1" max="5.0" step="0.05" value="1.0">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Position X (cm)"
+        data-tooltip="Moves the 3D model horizontally left (-) or right (+) in centimeters.">
+        <label><span>Position X (cm)</span><span class="val" id="val-posx">0.0</span></label>
+        <input type="range" id="inp-posx" min="-40" max="40" step="0.5" value="0.0">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Position Y (cm)"
+        data-tooltip="Moves the 3D model vertically down (-) or up (+) in centimeters.">
+        <label><span>Position Y (cm)</span><span class="val" id="val-posy">0.0</span></label>
+        <input type="range" id="inp-posy" min="-30" max="30" step="0.5" value="0.0">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Position Z (cm)"
+        data-tooltip="Moves the 3D model deeper inside the monitor (< 0), onto the screen glass plane (0), or popping out in front of the screen (> 0).">
+        <label><span>Position Z (cm, 0 = screen)</span><span class="val" id="val-posz">-15.0</span></label>
+        <input type="range" id="inp-posz" min="-100" max="25" step="0.5" value="-15.0">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Rotation X (°)"
+        data-tooltip="Tilts the 3D model forward or backward around the horizontal X-axis in degrees.">
+        <label><span>Rotation X (°)</span><span class="val" id="val-rotx">0°</span></label>
+        <input type="range" id="inp-rotx" min="-180" max="180" step="1" value="0">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Rotation Y (°)"
+        data-tooltip="Turns the 3D model left or right around the vertical Y-axis in degrees.">
+        <label><span>Rotation Y (°)</span><span class="val" id="val-roty">0°</span></label>
+        <input type="range" id="inp-roty" min="-180" max="180" step="1" value="0">
+      </div>
+
+      <div class="control-group" data-tooltip-title="Rotation Z (°)"
+        data-tooltip="Rolls the 3D model clockwise or counter-clockwise around the Z-axis in degrees.">
+        <label><span>Rotation Z (°)</span><span class="val" id="val-rotz">0°</span></label>
+        <input type="range" id="inp-rotz" min="-180" max="180" step="1" value="0">
+      </div>
+
+      <div class="btn-row">
+        <button id="btn-reset-model" class="secondary" data-tooltip-title="Reset Transform"
+          data-tooltip="Resets model scale, position, rotation angles, and turntable speed back to their defaults.">Reset
+          Transform</button>
+        <button id="btn-clear-model" class="danger" data-tooltip-title="Clear Model"
+          data-tooltip="Removes the current 3D model from the viewport and frees its geometry and texture memory.">Clear
+          Model</button>
+      </div>
+    </details>
+  </div>
+
+  <div id="webcam-container">
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="overlay-canvas" width="210" height="158"></canvas>
+    <div id="webcam-badge">Webcam Off</div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import * as CameraUtils from 'three/addons/utils/CameraUtils.js';
+    import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+    import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { unzipSync } from 'three/addons/libs/fflate.module.js';
+    import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+
+    // --- 1. Configuration & State ---
+    const config = {
+      screenWidthCm: 34.5,
+      screenHeightCm: 34.5 * (window.innerHeight / window.innerWidth),
+      roomDepthCm: 50.0,
+      webcamXOffsetCm: 0.0,
+      webcamYOffsetCm: 9.5,
+      zScaleFactor: 4.2,
+      sensitivity: 1.1,
+      lerpFactor: 0.20,
+      near: 1.0,
+      far: 600.0,
+      useWebcam: false,
+      selectedDeviceId: '',
+      showGrid: true,
+      gridColor: '#525252',
+      bgColor: '#080808',
+      showPreview: true,
+      title: {
+        text: 'Digitalt Kulturarv Sydost',
+        fontFamily: 'serif',
+        bold: false,
+        italic: true,
+        fontSizePx: 60,
+        widthPct: 40
+      },
+      lighting: {
+        preset: 'studio',
+        ambInt: 0.55,
+        ambColor: '#ffffff',
+        keyInt: 2.20,
+        keyColor: '#ffffff',
+        keyX: 14.0,
+        keyY: 18.0,
+        keyZ: 22.0,
+        fillInt: 0.90,
+        fillColor: '#ffffff',
+        rimInt: 0.70,
+        shadows: true
+      },
+      model: {
+        scale: 1.0,
+        posX: 0.0,
+        posY: 0.0,
+        posZ: -15.0,
+        rotXDeg: 0,
+        rotYDeg: 0,
+        rotZDeg: 0,
+        rotSpeedDegPerSec: 0
+      }
+    };
+
+    const LIGHT_PRESETS = {
+      studio: {
+        ambInt: 0.55, ambColor: '#ffffff',
+        keyInt: 2.20, keyColor: '#ffffff', keyX: 14, keyY: 18, keyZ: 22,
+        fillInt: 0.90, fillColor: '#ffffff',
+        rimInt: 0.70
+      },
+      museum: {
+        ambInt: 0.28, ambColor: '#ffedd5',
+        keyInt: 3.40, keyColor: '#ffb366', keyX: 6, keyY: 26, keyZ: 18,
+        fillInt: 0.45, fillColor: '#fde68a',
+        rimInt: 0.30
+      },
+      dramatic: {
+        ambInt: 0.04, ambColor: '#334155',
+        keyInt: 4.40, keyColor: '#ffffff', keyX: 32, keyY: 14, keyZ: 8,
+        fillInt: 0.08, fillColor: '#1e40af',
+        rimInt: 1.80
+      },
+      neutral: {
+        ambInt: 1.85, ambColor: '#ffffff',
+        keyInt: 0.55, keyColor: '#ffffff', keyX: 0, keyY: 10, keyZ: 40,
+        fillInt: 0.55, fillColor: '#ffffff',
+        rimInt: 0.15
+      }
+    };
+
+    const targetEye = new THREE.Vector3(0, 0, 55);
+    const currentEye = new THREE.Vector3(0, 0, 55);
+
+    // --- 2. Three.js Scene & Renderer Setup ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x080808);
+
+    const camera = new THREE.PerspectiveCamera();
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = config.lighting.shadows;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    container.appendChild(renderer.domElement);
+
+    // --- 3. Lighting & Auto-Fading 3D Key Light Indicator ---
+    const ambientLight = new THREE.AmbientLight(config.lighting.ambColor, config.lighting.ambInt);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(config.lighting.keyColor, config.lighting.keyInt);
+    keyLight.position.set(config.lighting.keyX, config.lighting.keyY, config.lighting.keyZ);
+    keyLight.castShadow = config.lighting.shadows;
+    keyLight.shadow.mapSize.width = 2048;
+    keyLight.shadow.mapSize.height = 2048;
+    keyLight.shadow.camera.near = 1;
+    keyLight.shadow.camera.far = 200;
+    const shadowCamSize = 40;
+    keyLight.shadow.camera.left = -shadowCamSize;
+    keyLight.shadow.camera.right = shadowCamSize;
+    keyLight.shadow.camera.top = shadowCamSize;
+    keyLight.shadow.camera.bottom = -shadowCamSize;
+    keyLight.shadow.bias = -0.0005;
+    scene.add(keyLight);
+    scene.add(keyLight.target);
+
+    const fillLight = new THREE.DirectionalLight(config.lighting.fillColor, config.lighting.fillInt);
+    fillLight.position.set(-18, 15, 30);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.DirectionalLight(0xffffff, config.lighting.rimInt);
+    rimLight.position.set(12, -12, -40);
+    scene.add(rimLight);
+
+    // 3D Key Light Position Indicator (appears when dragging Key Light X/Y/Z sliders, then fades out)
+    const keyLightHelperGroup = new THREE.Group();
+    keyLightHelperGroup.visible = false;
+    scene.add(keyLightHelperGroup);
+
+    const helperBulbMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0
+    });
+    const helperBulb = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 16), helperBulbMat);
+    keyLightHelperGroup.add(helperBulb);
+
+    const helperHaloMat = new THREE.MeshBasicMaterial({
+      color: 0xd4d4d4,
+      wireframe: true,
+      transparent: true,
+      opacity: 0
+    });
+    const helperHalo = new THREE.Mesh(new THREE.SphereGeometry(1.6, 12, 12), helperHaloMat);
+    keyLightHelperGroup.add(helperHalo);
+
+    const helperRayGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, -15)
+    ]);
+    const helperRayMat = new THREE.LineBasicMaterial({
+      color: 0xd4d4d4,
+      transparent: true,
+      opacity: 0
+    });
+    const helperRay = new THREE.Line(helperRayGeo, helperRayMat);
+    keyLightHelperGroup.add(helperRay);
+
+    let keyHelperAlpha = 0;
+    let keyHelperHoldTimer = 0;
+
+    function updateKeyLightHelperGeometry() {
+      const kx = config.lighting.keyX;
+      const ky = config.lighting.keyY;
+      const kz = config.lighting.keyZ;
+      const tx = config.model.posX;
+      const ty = config.model.posY;
+      const tz = config.model.posZ;
+
+      helperBulb.position.set(kx, ky, kz);
+      helperHalo.position.set(kx, ky, kz);
+      helperBulbMat.color.set(config.lighting.keyColor);
+
+      const posAttr = helperRay.geometry.attributes.position;
+      posAttr.setXYZ(0, kx, ky, kz);
+      posAttr.setXYZ(1, tx, ty, tz);
+      posAttr.needsUpdate = true;
+    }
+
+    function triggerKeyLightHelper() {
+      updateKeyLightHelperGeometry();
+      keyHelperAlpha = 1.0;
+      keyHelperHoldTimer = 0.85; // Hold visible for 0.85s after last slider move
+      keyLightHelperGroup.visible = true;
+      helperBulbMat.opacity = 0.95;
+      helperHaloMat.opacity = 0.55;
+      helperRayMat.opacity = 0.75;
+    }
+
+    function applyLightingConfig() {
+      ambientLight.intensity = config.lighting.ambInt;
+      ambientLight.color.set(config.lighting.ambColor);
+
+      keyLight.intensity = config.lighting.keyInt;
+      keyLight.color.set(config.lighting.keyColor);
+      keyLight.position.set(config.lighting.keyX, config.lighting.keyY, config.lighting.keyZ);
+      keyLight.target.position.set(config.model.posX, config.model.posY, config.model.posZ);
+      keyLight.target.updateMatrixWorld();
+
+      fillLight.intensity = config.lighting.fillInt;
+      fillLight.color.set(config.lighting.fillColor);
+
+      rimLight.intensity = config.lighting.rimInt;
+
+      renderer.shadowMap.enabled = config.lighting.shadows;
+      keyLight.castShadow = config.lighting.shadows;
+      updateKeyLightHelperGeometry();
+    }
+
+    // --- 4. Build the Off-Axis Room / Background Grid ---
+    const roomGroup = new THREE.Group();
+    scene.add(roomGroup);
+
+    function buildRoomGeometry() {
+      while (roomGroup.children.length > 0) {
+        const obj = roomGroup.children[0];
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+          else obj.material.dispose();
+        }
+        roomGroup.remove(obj);
+      }
+
+      const W = config.screenWidthCm;
+      const H = config.screenHeightCm;
+      const D = config.roomDepthCm;
+
+      const primaryGridColor = new THREE.Color(config.gridColor);
+      const secondaryGridColor = primaryGridColor.clone().multiplyScalar(0.55);
+
+      const sliceMat = new THREE.LineBasicMaterial({ color: secondaryGridColor });
+      const railMat = new THREE.LineBasicMaterial({ color: primaryGridColor });
+
+      // Start at i = 1 (skipping i = 0 at Z = 0) so no lines sit on the frustum clipping boundary
+      const slices = 10;
+      for (let i = 1; i <= slices; i++) {
+        const z = -(i / slices) * D;
+        const pts = [
+          new THREE.Vector3(-W / 2, -H / 2, z),
+          new THREE.Vector3(W / 2, -H / 2, z),
+          new THREE.Vector3(W / 2, H / 2, z),
+          new THREE.Vector3(-W / 2, H / 2, z),
+          new THREE.Vector3(-W / 2, -H / 2, z)
+        ];
+        const geo = new THREE.BufferGeometry().setFromPoints(pts);
+        roomGroup.add(new THREE.Line(geo, sliceMat));
+      }
+
+      // Corner rails connecting Z = 0 to Z = -D
+      const corners = [
+        [-W / 2, -H / 2], [W / 2, -H / 2],
+        [W / 2, H / 2], [-W / 2, H / 2]
+      ];
+      corners.forEach(([cx, cy]) => {
+        const geo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(cx, cy, 0),
+          new THREE.Vector3(cx, cy, -D)
+        ]);
+        roomGroup.add(new THREE.Line(geo, railMat));
+      });
+
+      // Back wall grid
+      const maxDim = Math.max(W, H);
+      const backGrid = new THREE.GridHelper(maxDim, 20, primaryGridColor, secondaryGridColor);
+      backGrid.rotation.x = Math.PI / 2;
+      backGrid.position.z = -D;
+      backGrid.scale.set(W / maxDim, 1, H / maxDim);
+      roomGroup.add(backGrid);
+
+      roomGroup.visible = config.showGrid;
+    }
+
+    buildRoomGeometry();
+
+    // --- 5. Unified 3D Model Loader (.ZIP glTF/OBJ, .GLB, .GLTF, .OBJ, .MTL, Textures) ---
+    const modelPivot = new THREE.Group();
+    scene.add(modelPivot);
+
+    let loadedModelWrapper = null;
+    const modelInfoEl = document.getElementById('model-info');
+
+    // Persistent state for incremental OBJ + MTL + Texture drops
+    let currentObjText = null;
+    let currentObjName = null;
+    let currentMtlText = null;
+    let currentMtlName = null;
+    const assetBlobUrls = new Map(); // normalized path or lowercase basename -> blob URL
+    const allocatedBlobs = [];
+    let latestStandaloneImageUrl = null;
+
+    function revokeAssetBlobs() {
+      allocatedBlobs.forEach(url => URL.revokeObjectURL(url));
+      allocatedBlobs.length = 0;
+      assetBlobUrls.clear();
+      latestStandaloneImageUrl = null;
+    }
+
+    function normalizePathKey(p) {
+      return decodeURIComponent(p)
+        .replace(/\\/g, '/')
+        .replace(/^(\.\/)+/, '')
+        .replace(/^\//, '')
+        .toLowerCase();
+    }
+
+    function registerBlobInMap(relPath, blob, isImage = false) {
+      const url = URL.createObjectURL(blob);
+      allocatedBlobs.push(url);
+      const normRel = normalizePathKey(relPath);
+      const baseName = normRel.split('/').pop();
+      assetBlobUrls.set(normRel, url);
+      if (baseName) {
+        assetBlobUrls.set(baseName, url);
+      }
+      if (isImage) {
+        latestStandaloneImageUrl = url;
+      }
+      return url;
+    }
+
+    function createCustomLoadingManager() {
+      const manager = new THREE.LoadingManager();
+      manager.setURLModifier((url) => {
+        if (url.startsWith('data:')) return url;
+
+        // Clean up any blob base prefix that Three.js loaders may prepend
+        let cleaned = url;
+        if (cleaned.startsWith('blob:')) {
+          // If it's already one of our registered blob URLs, return it directly
+          if (allocatedBlobs.includes(cleaned)) return cleaned;
+          const lastSlash = cleaned.lastIndexOf('/');
+          if (lastSlash !== -1) {
+            cleaned = cleaned.slice(lastSlash + 1);
+          }
+        } else {
+          try {
+            const parsed = new URL(cleaned, window.location.href);
+            cleaned = parsed.pathname;
+          } catch (_) {
+            // keep cleaned as-is
+          }
+        }
+
+        const normKey = normalizePathKey(cleaned);
+        if (assetBlobUrls.has(normKey)) {
+          return assetBlobUrls.get(normKey);
+        }
+
+        const baseKey = normKey.split('/').pop();
+        if (baseKey && assetBlobUrls.has(baseKey)) {
+          return assetBlobUrls.get(baseKey);
+        }
+
+        return url;
+      });
+      return manager;
+    }
+
+    function applyModelTransforms() {
+      modelPivot.position.set(config.model.posX, config.model.posY, config.model.posZ);
+      modelPivot.scale.setScalar(config.model.scale);
+      modelPivot.rotation.set(
+        THREE.MathUtils.degToRad(config.model.rotXDeg),
+        THREE.MathUtils.degToRad(config.model.rotYDeg),
+        THREE.MathUtils.degToRad(config.model.rotZDeg)
+      );
+      keyLight.target.position.set(config.model.posX, config.model.posY, config.model.posZ);
+      keyLight.target.updateMatrixWorld();
+      updateKeyLightHelperGeometry();
+    }
+
+    applyModelTransforms();
+
+    function applyShadowSettingsToModel() {
+      if (!loadedModelWrapper) return;
+      loadedModelWrapper.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = config.lighting.shadows;
+          child.receiveShadow = config.lighting.shadows;
+        }
+      });
+    }
+
+    function clearCurrentModel(resetStoredObj = true) {
+      if (loadedModelWrapper) {
+        loadedModelWrapper.traverse((child) => {
+          if (child.isMesh) {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+              if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+              else child.material.dispose();
+            }
+          }
+        });
+        modelPivot.remove(loadedModelWrapper);
+        loadedModelWrapper = null;
+      }
+      if (resetStoredObj) {
+        currentObjText = null;
+        currentObjName = null;
+        currentMtlText = null;
+        currentMtlName = null;
+        revokeAssetBlobs();
+        modelInfoEl.textContent = 'No model loaded';
+      }
+    }
+
+    // Convert unlit (KHR_materials_unlit / MeshBasicMaterial), emissive-baked, or zero-diffuse MTL materials
+    // into physically lit MeshStandardMaterial so scene lighting presets and shadows always affect the model.
+    function normalizeToLitMaterial(mat, hasVertexColors = false) {
+      if (!mat) {
+        return new THREE.MeshStandardMaterial({
+          color: 0xe2e8f0,
+          roughness: 0.55,
+          metalness: 0.05,
+          vertexColors: hasVertexColors,
+          side: THREE.DoubleSide
+        });
+      }
+
+      const texMap = mat.map || mat.emissiveMap || null;
+      if (texMap) {
+        texMap.colorSpace = THREE.SRGBColorSpace;
+        texMap.needsUpdate = true;
+      }
+
+      const baseColor = mat.color ? mat.color.clone() : new THREE.Color(0xffffff);
+      // If a diffuse/emissive texture is present or the exporter wrote near-black Kd (0,0,0), use full white
+      if (texMap || (baseColor.r + baseColor.g + baseColor.b) < 0.08) {
+        baseColor.setHex(0xffffff);
+      }
+
+      const litMat = new THREE.MeshStandardMaterial({
+        name: mat.name || '',
+        color: baseColor,
+        map: texMap,
+        normalMap: mat.normalMap || null,
+        bumpMap: mat.bumpMap || null,
+        bumpScale: mat.bumpScale !== undefined ? mat.bumpScale : 1,
+        roughnessMap: mat.roughnessMap || null,
+        metalnessMap: mat.metalnessMap || null,
+        aoMap: mat.aoMap || null,
+        alphaMap: mat.alphaMap || null,
+        transparent: Boolean(mat.transparent),
+        opacity: mat.opacity !== undefined ? mat.opacity : 1.0,
+        alphaTest: mat.alphaTest || 0,
+        vertexColors: Boolean(mat.vertexColors || hasVertexColors),
+        roughness: mat.roughness !== undefined ? THREE.MathUtils.clamp(mat.roughness, 0.2, 1.0) : 0.6,
+        metalness: mat.metalness !== undefined ? Math.min(mat.metalness, 0.2) : 0.05,
+        side: THREE.DoubleSide
+      });
+      litMat.needsUpdate = true;
+      return litMat;
+    }
+
+    function mountNormalizedObject(rootObject, statusLabel) {
+      clearCurrentModel(false);
+
+      let meshCount = 0;
+      let vertexCount = 0;
+
+      rootObject.traverse((child) => {
+        if (child.isMesh) {
+          meshCount++;
+          let hasVertexColors = false;
+          if (child.geometry) {
+            const normAttr = child.geometry.attributes.normal;
+            let needsNormals = !normAttr || normAttr.count === 0;
+            if (!needsNormals) {
+              const nx = normAttr.getX(0);
+              const ny = normAttr.getY(0);
+              const nz = normAttr.getZ(0);
+              if (Math.hypot(nx, ny, nz) < 0.01) needsNormals = true;
+            }
+            if (needsNormals) {
+              child.geometry.computeVertexNormals();
+            }
+            if (child.geometry.attributes.position) {
+              vertexCount += child.geometry.attributes.position.count;
+            }
+            hasVertexColors = Boolean(child.geometry.attributes.color);
+          }
+
+          if (Array.isArray(child.material)) {
+            child.material = child.material.map(m => normalizeToLitMaterial(m, hasVertexColors));
+          } else {
+            child.material = normalizeToLitMaterial(child.material, hasVertexColors);
+          }
+
+          child.castShadow = config.lighting.shadows;
+          child.receiveShadow = config.lighting.shadows;
+        }
+      });
+
+      const box = new THREE.Box3().setFromObject(rootObject);
+      const size = new THREE.Vector3();
+      const center = new THREE.Vector3();
+      box.getSize(size);
+      box.getCenter(center);
+
+      const maxAxis = Math.max(size.x, size.y, size.z) || 1;
+      const targetSizeCm = Math.min(config.screenWidthCm, config.screenHeightCm) * 0.55;
+      const normScale = targetSizeCm / maxAxis;
+
+      const wrapper = new THREE.Group();
+      rootObject.position.sub(center);
+      wrapper.add(rootObject);
+      wrapper.scale.setScalar(normScale);
+
+      loadedModelWrapper = wrapper;
+      modelPivot.add(loadedModelWrapper);
+
+      applyModelTransforms();
+      modelInfoEl.textContent = `${statusLabel} (${meshCount} mesh${meshCount === 1 ? '' : 'es'}, ${vertexCount.toLocaleString()} verts)`;
+    }
+
+    function buildCurrentOBJScene() {
+      if (!currentObjText) return;
+      try {
+        const manager = createCustomLoadingManager();
+        const objLoader = new OBJLoader(manager);
+
+        let usedMtl = false;
+        if (currentMtlText) {
+          const mtlLoader = new MTLLoader(manager);
+          const materials = mtlLoader.parse(currentMtlText, '');
+          materials.preload();
+          objLoader.setMaterials(materials);
+          usedMtl = true;
+        }
+
+        const parsedObj = objLoader.parse(currentObjText);
+
+        // If no MTL was provided, apply fallback material (with standalone uploaded texture if available)
+        if (!usedMtl) {
+          let fallbackTexture = null;
+          if (latestStandaloneImageUrl) {
+            fallbackTexture = new THREE.TextureLoader(manager).load(latestStandaloneImageUrl);
+            fallbackTexture.colorSpace = THREE.SRGBColorSpace;
+          }
+
+          const defaultMat = new THREE.MeshStandardMaterial({
+            color: fallbackTexture ? 0xffffff : 0xe2e8f0,
+            map: fallbackTexture || null,
+            roughness: 0.35,
+            metalness: 0.2,
+            side: THREE.DoubleSide
+          });
+
+          parsedObj.traverse((child) => {
+            if (child.isMesh) {
+              child.material = defaultMat.clone();
+            }
+          });
+        } else {
+          // Ensure double-sided & sRGB textures on MTL materials
+          parsedObj.traverse((child) => {
+            if (child.isMesh && child.material) {
+              const mats = Array.isArray(child.material) ? child.material : [child.material];
+              mats.forEach(m => {
+                m.side = THREE.DoubleSide;
+                if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
+              });
+            }
+          });
+        }
+
+        const extraTags = [];
+        if (usedMtl) extraTags.push(`MTL: ${currentMtlName}`);
+        else if (latestStandaloneImageUrl) extraTags.push('Textured');
+        const suffix = extraTags.length ? ` [${extraTags.join(', ')}]` : '';
+
+        mountNormalizedObject(parsedObj, `Loaded ${currentObjName}${suffix}`);
+      } catch (err) {
+        console.error('Error parsing OBJ/MTL:', err);
+        modelInfoEl.textContent = 'Error loading OBJ: ' + err.message;
+      }
+    }
+
+    async function loadGLTFScene(gltfBlobUrl, displayLabel) {
+      const manager = createCustomLoadingManager();
+      const gltfLoader = new GLTFLoader(manager);
+
+      return new Promise((resolve, reject) => {
+        gltfLoader.load(
+          gltfBlobUrl,
+          (gltf) => {
+            const root = gltf.scene || (gltf.scenes && gltf.scenes[0]);
+            if (!root) {
+              reject(new Error('glTF file contains no scene.'));
+              return;
+            }
+            mountNormalizedObject(root, `Loaded ${displayLabel}`);
+            resolve();
+          },
+          undefined,
+          (err) => {
+            reject(err);
+          }
+        );
+      });
+    }
+
+    function getMimeTypeForFilename(name) {
+      const ext = name.split('.').pop().toLowerCase();
+      switch (ext) {
+        case 'png': return 'image/png';
+        case 'jpg':
+        case 'jpeg': return 'image/jpeg';
+        case 'webp': return 'image/webp';
+        case 'bmp': return 'image/bmp';
+        case 'gif': return 'image/gif';
+        case 'glb': return 'model/gltf-binary';
+        case 'gltf': return 'model/gltf+json';
+        default: return 'application/octet-stream';
+      }
+    }
+
+    function isImageExt(ext) {
+      return ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif'].includes(ext);
+    }
+
+    async function processUploadedFiles(fileList) {
+      if (!fileList || fileList.length === 0) return;
+      modelInfoEl.textContent = 'Processing uploaded files...';
+
+      // Collect all virtual file entries: { path: string, name: string, ext: string, blob: Blob }
+      const entries = [];
+
+      for (const file of Array.from(fileList)) {
+        const relPath = file.webkitRelativePath || file.fullPath || file.name;
+        const ext = file.name.split('.').pop().toLowerCase();
+
+        if (ext === 'zip') {
+          try {
+            modelInfoEl.textContent = `Extracting ${file.name}...`;
+            const buf = await file.arrayBuffer();
+            const unzipped = unzipSync(new Uint8Array(buf));
+            for (const [zipPath, uint8Data] of Object.entries(unzipped)) {
+              // Skip directories and macOS resource forks
+              if (zipPath.endsWith('/') || zipPath.includes('__MACOSX/') || zipPath.endsWith('.DS_Store')) {
+                continue;
+              }
+              const baseName = zipPath.split('/').pop();
+              const subExt = baseName.split('.').pop().toLowerCase();
+              const blob = new Blob([uint8Data], { type: getMimeTypeForFilename(baseName) });
+              entries.push({
+                path: zipPath,
+                name: baseName,
+                ext: subExt,
+                blob
+              });
+            }
+          } catch (zipErr) {
+            console.error('Failed to unzip archive:', zipErr);
+            modelInfoEl.textContent = 'Error extracting .zip: ' + zipErr.message;
+            return;
+          }
+        } else {
+          entries.push({
+            path: relPath,
+            name: file.name,
+            ext,
+            blob: file
+          });
+        }
+      }
+
+      if (entries.length === 0) {
+        modelInfoEl.textContent = 'No supported 3D files found in selection.';
+        return;
+      }
+
+      const gltfEntry = entries.find(e => e.ext === 'gltf' || e.ext === 'glb');
+      const objEntry = entries.find(e => e.ext === 'obj');
+      const mtlEntry = entries.find(e => e.ext === 'mtl');
+
+      // If loading a brand-new primary model (.gltf/.glb or .obj), reset old blobs first
+      if (gltfEntry || objEntry) {
+        revokeAssetBlobs();
+      }
+
+      // Register all auxiliary resources (images, .bin buffers, etc.) in assetBlobUrls
+      for (const entry of entries) {
+        if (isImageExt(entry.ext) || entry.ext === 'bin') {
+          registerBlobInMap(entry.path, entry.blob, isImageExt(entry.ext));
+        }
+      }
+
+      // Case 1: glTF / GLB (from .zip or loose files)
+      if (gltfEntry) {
+        try {
+          currentObjText = null;
+          currentObjName = null;
+          currentMtlText = null;
+          currentMtlName = null;
+
+          if (gltfEntry.ext === 'gltf') {
+            // Rewrite relative URIs inside the .gltf JSON to their registered Blob URLs so GLTFLoader resolves relative paths in subfolders cleanly
+            const gltfText = await gltfEntry.blob.text();
+            const gltfDir = gltfEntry.path.includes('/')
+              ? gltfEntry.path.slice(0, gltfEntry.path.lastIndexOf('/') + 1)
+              : '';
+            let gltfJson;
+            try {
+              gltfJson = JSON.parse(gltfText);
+              const resolveUri = (uri) => {
+                if (!uri || uri.startsWith('data:')) return uri;
+                const combinedKey = normalizePathKey(gltfDir + uri);
+                if (assetBlobUrls.has(combinedKey)) return assetBlobUrls.get(combinedKey);
+                const directKey = normalizePathKey(uri);
+                if (assetBlobUrls.has(directKey)) return assetBlobUrls.get(directKey);
+                const baseKey = directKey.split('/').pop();
+                if (baseKey && assetBlobUrls.has(baseKey)) return assetBlobUrls.get(baseKey);
+                return uri;
+              };
+              if (Array.isArray(gltfJson.buffers)) {
+                gltfJson.buffers.forEach(b => { if (b.uri) b.uri = resolveUri(b.uri); });
+              }
+              if (Array.isArray(gltfJson.images)) {
+                gltfJson.images.forEach(img => { if (img.uri) img.uri = resolveUri(img.uri); });
+              }
+              const rewrittenBlob = new Blob([JSON.stringify(gltfJson)], { type: 'model/gltf+json' });
+              const gltfUrl = registerBlobInMap(gltfEntry.path, rewrittenBlob, false);
+              await loadGLTFScene(gltfUrl, gltfEntry.name);
+            } catch (parseErr) {
+              const gltfUrl = registerBlobInMap(gltfEntry.path, gltfEntry.blob, false);
+              await loadGLTFScene(gltfUrl, gltfEntry.name);
+            }
+          } else {
+            const glbUrl = registerBlobInMap(gltfEntry.path, gltfEntry.blob, false);
+            await loadGLTFScene(glbUrl, gltfEntry.name);
+          }
+        } catch (err) {
+          console.error('Error loading glTF:', err);
+          modelInfoEl.textContent = 'Error loading glTF: ' + (err.message || err);
+        }
+        return;
+      }
+
+      // Case 2: OBJ (+ optional MTL & Textures, either uploaded together or added incrementally)
+      if (objEntry) {
+        currentObjText = await objEntry.blob.text();
+        currentObjName = objEntry.name;
+        if (!mtlEntry) {
+          currentMtlText = null;
+          currentMtlName = null;
+        }
+      }
+      if (mtlEntry) {
+        currentMtlText = await mtlEntry.blob.text();
+        currentMtlName = mtlEntry.name;
+      }
+
+      if (currentObjText) {
+        buildCurrentOBJScene();
+      } else {
+        modelInfoEl.textContent = 'Uploaded materials/textures. Now upload or drop an .OBJ file.';
+      }
+    }
+
+    // Helper to traverse dropped directories via DataTransferItem.webkitGetAsEntry
+    async function extractDroppedFiles(dataTransfer) {
+      const files = [];
+      if (dataTransfer.items && dataTransfer.items.length > 0) {
+        const entries = [];
+        for (let i = 0; i < dataTransfer.items.length; i++) {
+          const item = dataTransfer.items[i];
+          if (item.kind === 'file') {
+            const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+            if (entry) {
+              entries.push(entry);
+            } else {
+              const f = item.getAsFile();
+              if (f) files.push(f);
+            }
+          }
+        }
+
+        async function traverseEntry(entry, prefix = '') {
+          if (entry.isFile) {
+            const file = await new Promise((res, rej) => entry.file(res, rej));
+            file.fullPath = prefix + file.name;
+            files.push(file);
+          } else if (entry.isDirectory) {
+            const reader = entry.createReader();
+            let batch;
+            do {
+              batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+              for (const child of batch) {
+                await traverseEntry(child, prefix + entry.name + '/');
+              }
+            } while (batch.length > 0);
+          }
+        }
+
+        for (const entry of entries) {
+          await traverseEntry(entry, '');
+        }
+      } else if (dataTransfer.files) {
+        files.push(...Array.from(dataTransfer.files));
+      }
+      return files;
+    }
+
+    // --- 6. Off-Axis Projection Matrix Solver ---
+    const bottomLeft = new THREE.Vector3();
+    const bottomRight = new THREE.Vector3();
+    const topLeft = new THREE.Vector3();
+
+    function updateOffAxisCamera(cam, eyePos) {
+      const halfW = config.screenWidthCm * 0.5;
+      const halfH = config.screenHeightCm * 0.5;
+
+      // Physical screen corners in world space (Z = 0 plane)
+      bottomLeft.set(-halfW, -halfH, 0);
+      bottomRight.set(halfW, -halfH, 0);
+      topLeft.set(-halfW, halfH, 0);
+
+      cam.position.copy(eyePos);
+      cam.near = config.near;
+      cam.far = config.far;
+
+      // Compute generalized off-axis frustum & align camera plane with screen
+      CameraUtils.frameCorners(cam, bottomLeft, bottomRight, topLeft, false);
+    }
+
+    // --- 7. Webcam Management & MediaPipe Face Landmarker ---
+    const video = document.getElementById('webcam');
+    const overlayCanvas = document.getElementById('overlay-canvas');
+    const ctx = overlayCanvas.getContext('2d');
+    const statusReadout = document.getElementById('status-readout');
+    const webcamBadge = document.getElementById('webcam-badge');
+    const cameraSelect = document.getElementById('sel-camera');
+    const btnWebcam = document.getElementById('btn-webcam');
+
+    let landmarker = null;
+    let lastVideoTime = -1;
+    let activeStream = null;
+    let videoDevices = [];
+
+    async function initMediaPipe() {
+      statusReadout.textContent = 'Loading MediaPipe WASM & Model...';
+      const vision = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+      );
+      landmarker = await FaceLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+          delegate: 'GPU'
+        },
+        runningMode: 'VIDEO',
+        numFaces: 1
+      });
+    }
+
+    async function refreshCameraList() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+        const currentSelection = config.selectedDeviceId || cameraSelect.value;
+        cameraSelect.innerHTML = '';
+
+        if (videoDevices.length === 0) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'No Webcam Found';
+          cameraSelect.appendChild(opt);
+          return;
+        }
+
+        videoDevices.forEach((device, idx) => {
+          const opt = document.createElement('option');
+          opt.value = device.deviceId;
+          opt.textContent = device.label || `Camera ${idx + 1}`;
+          cameraSelect.appendChild(opt);
+        });
+
+        if (activeStream) {
+          const videoTrack = activeStream.getVideoTracks()[0];
+          const activeDeviceId = videoTrack?.getSettings?.()?.deviceId;
+          if (activeDeviceId && videoDevices.some(d => d.deviceId === activeDeviceId)) {
+            cameraSelect.value = activeDeviceId;
+            config.selectedDeviceId = activeDeviceId;
+            return;
+          }
+        }
+
+        if (currentSelection && videoDevices.some(d => d.deviceId === currentSelection)) {
+          cameraSelect.value = currentSelection;
+        } else {
+          cameraSelect.value = videoDevices[0].deviceId;
+          config.selectedDeviceId = videoDevices[0].deviceId;
+        }
+      } catch (err) {
+        console.warn('Could not enumerate video devices:', err);
+      }
+    }
+
+    function stopWebcamStream() {
+      if (activeStream) {
+        activeStream.getTracks().forEach(track => track.stop());
+        activeStream = null;
+      }
+      video.srcObject = null;
+      ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+      webcamBadge.textContent = 'Webcam Off';
+    }
+
+    async function startWebcam(deviceId = config.selectedDeviceId) {
+      try {
+        btnWebcam.disabled = true;
+        if (!landmarker) await initMediaPipe();
+
+        stopWebcamStream();
+
+        const videoConstraints = {
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        };
+        if (deviceId) {
+          videoConstraints.deviceId = { exact: deviceId };
+        } else {
+          videoConstraints.facingMode = 'user';
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints,
+          audio: false
+        });
+
+        activeStream = stream;
+        video.srcObject = stream;
+        await video.play();
+
+        config.useWebcam = true;
+        lastVideoTime = -1;
+
+        await refreshCameraList();
+
+        const activeLabel = cameraSelect.options[cameraSelect.selectedIndex]?.text || 'Webcam Active';
+        webcamBadge.textContent = activeLabel;
+        btnWebcam.textContent = 'Restart Tracking';
+      } catch (err) {
+        console.error(err);
+        statusReadout.textContent = 'Webcam Error: ' + err.message;
+        webcamBadge.textContent = 'Webcam Error';
+      } finally {
+        btnWebcam.disabled = false;
+      }
+    }
+
+    function processWebcamFrame() {
+      if (!config.useWebcam || !landmarker || video.readyState < 2) return;
+
+      if (video.currentTime !== lastVideoTime) {
+        lastVideoTime = video.currentTime;
+        const result = landmarker.detectForVideo(video, performance.now());
+
+        ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+        if (result.faceLandmarks && result.faceLandmarks.length > 0) {
+          const lm = result.faceLandmarks[0];
+          const leftIris = lm[468] || lm[33];
+          const rightIris = lm[473] || lm[263];
+
+          if (config.showPreview) {
+            ctx.fillStyle = '#e5e5e5';
+            [leftIris, rightIris].forEach(pt => {
+              ctx.beginPath();
+              ctx.arc(pt.x * overlayCanvas.width, pt.y * overlayCanvas.height, 4, 0, Math.PI * 2);
+              ctx.fill();
+            });
+          }
+
+          const midX = (leftIris.x + rightIris.x) * 0.5;
+          const midY = (leftIris.y + rightIris.y) * 0.5;
+
+          const dx = leftIris.x - rightIris.x;
+          const aspect = (video.videoHeight && video.videoWidth) ? (video.videoHeight / video.videoWidth) : 0.75;
+          const dy = (leftIris.y - rightIris.y) * aspect;
+          const irisDistNorm = Math.hypot(dx, dy);
+          const estimatedZ = THREE.MathUtils.clamp(config.zScaleFactor / Math.max(irisDistNorm, 0.01), 20, 150);
+
+          targetEye.x = -(midX - 0.5) * estimatedZ * config.sensitivity + config.webcamXOffsetCm;
+          targetEye.y = -(midY - 0.5) * estimatedZ * (config.sensitivity * 0.75) + config.webcamYOffsetCm;
+          targetEye.z = estimatedZ;
+
+          statusReadout.textContent = `Head Eye (cm): X:${targetEye.x.toFixed(1)} Y:${targetEye.y.toFixed(1)} Z:${targetEye.z.toFixed(1)}`;
+        } else {
+          statusReadout.textContent = 'Tracking: No face detected';
+        }
+      }
+    }
+
+    refreshCameraList();
+    if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+      navigator.mediaDevices.addEventListener('devicechange', refreshCameraList);
+    }
+
+    // --- 8. Right-Anchored Floating Tooltip Logic ---
+    const hudEl = document.getElementById('hud');
+    const tooltipEl = document.getElementById('ui-tooltip');
+    const ttTitleEl = document.getElementById('tt-title');
+    const ttBodyEl = document.getElementById('tt-body');
+
+    function showOptionTooltip(targetEl) {
+      if (hudEl.classList.contains('hidden')) return;
+      const text = targetEl.getAttribute('data-tooltip');
+      if (!text) return;
+      const title = targetEl.getAttribute('data-tooltip-title') || 'Option';
+
+      ttTitleEl.textContent = title;
+      ttBodyEl.textContent = text;
+      tooltipEl.classList.add('visible');
+
+      const hudRect = hudEl.getBoundingClientRect();
+      const itemRect = targetEl.getBoundingClientRect();
+      const ttRect = tooltipEl.getBoundingClientRect();
+
+      const leftPos = Math.min(hudRect.right + 12, window.innerWidth - ttRect.width - 12);
+      const rawTop = itemRect.top + (itemRect.height * 0.5) - (ttRect.height * 0.5);
+      const clampedTop = Math.max(16, Math.min(rawTop, window.innerHeight - ttRect.height - 16));
+
+      tooltipEl.style.left = `${leftPos}px`;
+      tooltipEl.style.top = `${clampedTop}px`;
+    }
+
+    function hideOptionTooltip() {
+      tooltipEl.classList.remove('visible');
+    }
+
+    hudEl.querySelectorAll('[data-tooltip]').forEach((el) => {
+      // Set native title fallback as well
+      if (!el.getAttribute('title')) {
+        el.setAttribute('title', el.getAttribute('data-tooltip'));
+      }
+      el.addEventListener('mouseenter', () => showOptionTooltip(el));
+      el.addEventListener('mouseleave', hideOptionTooltip);
+    });
+    hudEl.addEventListener('scroll', hideOptionTooltip);
+
+    // --- 9. Mouse Fallback & UI Event Listeners ---
+    window.addEventListener('mousemove', (e) => {
+      if (config.useWebcam) return;
+      const nx = (e.clientX / window.innerWidth) * 2 - 1;
+      const ny = -(e.clientY / window.innerHeight) * 2 + 1;
+      targetEye.x = nx * 25;
+      targetEye.y = ny * 15;
+      statusReadout.textContent = `Mouse Eye (cm): X:${targetEye.x.toFixed(1)} Y:${targetEye.y.toFixed(1)} Z:${targetEye.z.toFixed(1)}`;
+    });
+
+    window.addEventListener('wheel', (e) => {
+      if (config.useWebcam) return;
+      if (e.target.closest('#hud')) return;
+      targetEye.z = THREE.MathUtils.clamp(targetEye.z + e.deltaY * 0.05, 20, 140);
+      statusReadout.textContent = `Mouse Eye (cm): X:${targetEye.x.toFixed(1)} Y:${targetEye.y.toFixed(1)} Z:${targetEye.z.toFixed(1)}`;
+    });
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      config.screenHeightCm = config.screenWidthCm * (window.innerHeight / window.innerWidth);
+      buildRoomGeometry();
+    });
+
+    // Options Panel Toggle (Button + 'H' shortcut)
+    const btnToggleHud = document.getElementById('btn-toggle-hud');
+    const toggleIcon = document.getElementById('toggle-icon');
+
+    function toggleHudVisibility() {
+      const isHidden = hudEl.classList.toggle('hidden');
+      toggleIcon.textContent = isHidden ? '▸' : '▾';
+      if (isHidden) hideOptionTooltip();
+    }
+
+    btnToggleHud.addEventListener('click', toggleHudVisibility);
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === 'h' || e.key === 'H') {
+        toggleHudVisibility();
+      }
+    });
+
+    // Webcam & Preview Controls
+    btnWebcam.addEventListener('click', () => {
+      startWebcam(cameraSelect.value);
+    });
+
+    document.getElementById('btn-mode').addEventListener('click', () => {
+      config.useWebcam = false;
+      stopWebcamStream();
+      btnWebcam.textContent = 'Start Face Tracking';
+      statusReadout.textContent = 'Mode: Mouse Fallback (Move cursor / Scroll Z)';
+    });
+
+    cameraSelect.addEventListener('change', (e) => {
+      config.selectedDeviceId = e.target.value;
+      if (config.useWebcam) {
+        startWebcam(config.selectedDeviceId);
+      }
+    });
+
+    document.getElementById('btn-next-cam').addEventListener('click', async () => {
+      await refreshCameraList();
+      if (videoDevices.length <= 1) {
+        if (!config.useWebcam) startWebcam(cameraSelect.value);
+        return;
+      }
+      const nextIdx = (cameraSelect.selectedIndex + 1) % cameraSelect.options.length;
+      cameraSelect.selectedIndex = nextIdx;
+      config.selectedDeviceId = cameraSelect.value;
+      if (config.useWebcam) {
+        startWebcam(config.selectedDeviceId);
+      }
+    });
+
+    const webcamContainer = document.getElementById('webcam-container');
+    document.getElementById('chk-preview').addEventListener('change', (e) => {
+      config.showPreview = e.target.checked;
+      webcamContainer.classList.toggle('hidden', !config.showPreview);
+    });
+
+    // Environment / Background Grid Controls
+    document.getElementById('chk-grid').addEventListener('change', (e) => {
+      config.showGrid = e.target.checked;
+      roomGroup.visible = config.showGrid;
+    });
+
+    document.getElementById('inp-depth').addEventListener('input', (e) => {
+      config.roomDepthCm = parseFloat(e.target.value);
+      document.getElementById('val-depth').textContent = config.roomDepthCm.toFixed(1);
+      buildRoomGeometry();
+    });
+
+    document.getElementById('inp-grid-color').addEventListener('input', (e) => {
+      config.gridColor = e.target.value;
+      document.getElementById('val-grid-color').textContent = config.gridColor.toLowerCase();
+      buildRoomGeometry();
+    });
+
+    document.getElementById('inp-bg-color').addEventListener('input', (e) => {
+      config.bgColor = e.target.value;
+      document.getElementById('val-bg-color').textContent = config.bgColor.toLowerCase();
+      scene.background.set(config.bgColor);
+      document.body.style.backgroundColor = config.bgColor;
+    });
+
+    // Top-Right Configurable Title Controls
+    const titleOverlayEl = document.getElementById('title-overlay');
+    const TITLE_FONT_STACKS = {
+      'serif': 'Georgia, "Times New Roman", Times, serif',
+      'sans-serif': 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      'monospace': 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+      'cursive': '"Segoe Script", "Apple Chancery", cursive',
+      'fantasy': 'Impact, Haettenschweiler, "Arial Narrow Bold", fantasy'
+    };
+
+    function applyTitleConfig() {
+      const hasText = config.title.text.trim().length > 0;
+      titleOverlayEl.textContent = config.title.text;
+      titleOverlayEl.style.fontFamily = TITLE_FONT_STACKS[config.title.fontFamily] || TITLE_FONT_STACKS['serif'];
+      titleOverlayEl.style.fontWeight = config.title.bold ? 'bold' : 'normal';
+      titleOverlayEl.style.fontStyle = config.title.italic ? 'italic' : 'normal';
+      titleOverlayEl.style.fontSize = `${config.title.fontSizePx}px`;
+      titleOverlayEl.style.width = `${config.title.widthPct}%`;
+      titleOverlayEl.classList.toggle('hidden', !hasText);
+    }
+
+    applyTitleConfig();
+
+    document.getElementById('inp-title-text').addEventListener('input', (e) => {
+      config.title.text = e.target.value;
+      applyTitleConfig();
+    });
+
+    document.getElementById('sel-title-font').addEventListener('change', (e) => {
+      config.title.fontFamily = e.target.value;
+      applyTitleConfig();
+    });
+
+    document.getElementById('chk-title-bold').addEventListener('change', (e) => {
+      config.title.bold = e.target.checked;
+      applyTitleConfig();
+    });
+
+    document.getElementById('chk-title-italic').addEventListener('change', (e) => {
+      config.title.italic = e.target.checked;
+      applyTitleConfig();
+    });
+
+    document.getElementById('inp-title-size').addEventListener('input', (e) => {
+      config.title.fontSizePx = parseInt(e.target.value, 10);
+      document.getElementById('val-title-size').textContent = `${config.title.fontSizePx}px`;
+      applyTitleConfig();
+    });
+
+    document.getElementById('inp-title-width').addEventListener('input', (e) => {
+      config.title.widthPct = parseInt(e.target.value, 10);
+      document.getElementById('val-title-width').textContent = `${config.title.widthPct}%`;
+      applyTitleConfig();
+    });
+
+    // Off-Axis Calibration Controls
+    document.getElementById('inp-width').addEventListener('input', (e) => {
+      config.screenWidthCm = parseFloat(e.target.value);
+      config.screenHeightCm = config.screenWidthCm * (window.innerHeight / window.innerWidth);
+      document.getElementById('val-width').textContent = config.screenWidthCm.toFixed(1);
+      buildRoomGeometry();
+    });
+
+    document.getElementById('inp-xoffset').addEventListener('input', (e) => {
+      config.webcamXOffsetCm = parseFloat(e.target.value);
+      document.getElementById('val-xoffset').textContent = config.webcamXOffsetCm.toFixed(1);
+    });
+
+    document.getElementById('inp-yoffset').addEventListener('input', (e) => {
+      config.webcamYOffsetCm = parseFloat(e.target.value);
+      document.getElementById('val-yoffset').textContent = config.webcamYOffsetCm.toFixed(1);
+    });
+
+    document.getElementById('inp-zscale').addEventListener('input', (e) => {
+      config.zScaleFactor = parseFloat(e.target.value);
+      document.getElementById('val-zscale').textContent = config.zScaleFactor.toFixed(1);
+    });
+
+    document.getElementById('inp-sens').addEventListener('input', (e) => {
+      config.sensitivity = parseFloat(e.target.value);
+      document.getElementById('val-sens').textContent = config.sensitivity.toFixed(1);
+    });
+
+    document.getElementById('inp-lerp').addEventListener('input', (e) => {
+      config.lerpFactor = parseFloat(e.target.value);
+      document.getElementById('val-lerp').textContent = config.lerpFactor.toFixed(2);
+    });
+
+    // Lighting UI Bindings
+    const selLightPreset = document.getElementById('sel-light-preset');
+    const inpAmbInt = document.getElementById('inp-amb-int');
+    const inpAmbColor = document.getElementById('inp-amb-color');
+    const inpKeyInt = document.getElementById('inp-key-int');
+    const inpKeyColor = document.getElementById('inp-key-color');
+    const inpKeyX = document.getElementById('inp-key-x');
+    const inpKeyY = document.getElementById('inp-key-y');
+    const inpKeyZ = document.getElementById('inp-key-z');
+    const inpFillInt = document.getElementById('inp-fill-int');
+    const inpFillColor = document.getElementById('inp-fill-color');
+    const inpRimInt = document.getElementById('inp-rim-int');
+    const chkShadows = document.getElementById('chk-shadows');
+
+    function syncLightingUI() {
+      inpAmbInt.value = config.lighting.ambInt;
+      document.getElementById('val-amb-int').textContent = config.lighting.ambInt.toFixed(2);
+      inpAmbColor.value = config.lighting.ambColor;
+
+      inpKeyInt.value = config.lighting.keyInt;
+      document.getElementById('val-key-int').textContent = config.lighting.keyInt.toFixed(2);
+      inpKeyColor.value = config.lighting.keyColor;
+
+      inpKeyX.value = config.lighting.keyX;
+      document.getElementById('val-key-x').textContent = config.lighting.keyX.toFixed(1);
+      inpKeyY.value = config.lighting.keyY;
+      document.getElementById('val-key-y').textContent = config.lighting.keyY.toFixed(1);
+      inpKeyZ.value = config.lighting.keyZ;
+      document.getElementById('val-key-z').textContent = config.lighting.keyZ.toFixed(1);
+
+      inpFillInt.value = config.lighting.fillInt;
+      document.getElementById('val-fill-int').textContent = config.lighting.fillInt.toFixed(2);
+      inpFillColor.value = config.lighting.fillColor;
+
+      inpRimInt.value = config.lighting.rimInt;
+      document.getElementById('val-rim-int').textContent = config.lighting.rimInt.toFixed(2);
+
+      chkShadows.checked = config.lighting.shadows;
+    }
+
+    syncLightingUI();
+
+    selLightPreset.addEventListener('change', (e) => {
+      const presetKey = e.target.value;
+      const preset = LIGHT_PRESETS[presetKey];
+      if (!preset) return;
+      Object.assign(config.lighting, preset, { preset: presetKey });
+      syncLightingUI();
+      applyLightingConfig();
+      triggerKeyLightHelper();
+    });
+
+    function markCustomPreset() {
+      config.lighting.preset = 'custom';
+      selLightPreset.value = 'custom';
+    }
+
+    inpAmbInt.addEventListener('input', (e) => {
+      config.lighting.ambInt = parseFloat(e.target.value);
+      document.getElementById('val-amb-int').textContent = config.lighting.ambInt.toFixed(2);
+      markCustomPreset();
+      applyLightingConfig();
+    });
+
+    inpAmbColor.addEventListener('input', (e) => {
+      config.lighting.ambColor = e.target.value;
+      markCustomPreset();
+      applyLightingConfig();
+    });
+
+    inpKeyInt.addEventListener('input', (e) => {
+      config.lighting.keyInt = parseFloat(e.target.value);
+      document.getElementById('val-key-int').textContent = config.lighting.keyInt.toFixed(2);
+      markCustomPreset();
+      applyLightingConfig();
+    });
+
+    inpKeyColor.addEventListener('input', (e) => {
+      config.lighting.keyColor = e.target.value;
+      markCustomPreset();
+      applyLightingConfig();
+      triggerKeyLightHelper();
+    });
+
+    inpKeyX.addEventListener('input', (e) => {
+      config.lighting.keyX = parseFloat(e.target.value);
+      document.getElementById('val-key-x').textContent = config.lighting.keyX.toFixed(1);
+      markCustomPreset();
+      applyLightingConfig();
+      triggerKeyLightHelper();
+    });
+
+    inpKeyY.addEventListener('input', (e) => {
+      config.lighting.keyY = parseFloat(e.target.value);
+      document.getElementById('val-key-y').textContent = config.lighting.keyY.toFixed(1);
+      markCustomPreset();
+      applyLightingConfig();
+      triggerKeyLightHelper();
+    });
+
+    inpKeyZ.addEventListener('input', (e) => {
+      config.lighting.keyZ = parseFloat(e.target.value);
+      document.getElementById('val-key-z').textContent = config.lighting.keyZ.toFixed(1);
+      markCustomPreset();
+      applyLightingConfig();
+      triggerKeyLightHelper();
+    });
+
+    inpFillInt.addEventListener('input', (e) => {
+      config.lighting.fillInt = parseFloat(e.target.value);
+      document.getElementById('val-fill-int').textContent = config.lighting.fillInt.toFixed(2);
+      markCustomPreset();
+      applyLightingConfig();
+    });
+
+    inpFillColor.addEventListener('input', (e) => {
+      config.lighting.fillColor = e.target.value;
+      markCustomPreset();
+      applyLightingConfig();
+    });
+
+    inpRimInt.addEventListener('input', (e) => {
+      config.lighting.rimInt = parseFloat(e.target.value);
+      document.getElementById('val-rim-int').textContent = config.lighting.rimInt.toFixed(2);
+      markCustomPreset();
+      applyLightingConfig();
+    });
+
+    chkShadows.addEventListener('change', (e) => {
+      config.lighting.shadows = e.target.checked;
+      applyLightingConfig();
+      applyShadowSettingsToModel();
+    });
+
+    // Model Upload & Drag-and-Drop
+    const inpObj = document.getElementById('inp-obj');
+    inpObj.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        processUploadedFiles(e.target.files);
+      }
+    });
+
+    const dropOverlay = document.getElementById('drop-overlay');
+    window.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropOverlay.classList.add('active');
+    });
+    window.addEventListener('dragleave', (e) => {
+      if (e.relatedTarget === null) {
+        dropOverlay.classList.remove('active');
+      }
+    });
+    window.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      dropOverlay.classList.remove('active');
+      const droppedFiles = await extractDroppedFiles(e.dataTransfer);
+      if (droppedFiles.length > 0) {
+        processUploadedFiles(droppedFiles);
+      }
+    });
+
+    // Model Transform & Signed Turntable Speed Sliders
+    const inpScale = document.getElementById('inp-scale');
+    const inpPosX = document.getElementById('inp-posx');
+    const inpPosY = document.getElementById('inp-posy');
+    const inpPosZ = document.getElementById('inp-posz');
+    const inpRotX = document.getElementById('inp-rotx');
+    const inpRotY = document.getElementById('inp-roty');
+    const inpRotZ = document.getElementById('inp-rotz');
+    const inpRotSpeed = document.getElementById('inp-rotspeed');
+    const valRotSpeed = document.getElementById('val-rotspeed');
+
+    function formatRotSpeedLabel(speed) {
+      if (speed === 0) return '0°/s (Off)';
+      if (speed > 0) return `${speed}°/s CW ↻`;
+      return `${Math.abs(speed)}°/s CCW ↺`;
+    }
+
+    function syncModelUI() {
+      inpScale.value = config.model.scale;
+      document.getElementById('val-scale').textContent = config.model.scale.toFixed(2) + 'x';
+
+      inpPosX.value = config.model.posX;
+      document.getElementById('val-posx').textContent = config.model.posX.toFixed(1);
+
+      inpPosY.value = config.model.posY;
+      document.getElementById('val-posy').textContent = config.model.posY.toFixed(1);
+
+      inpPosZ.value = config.model.posZ;
+      document.getElementById('val-posz').textContent = config.model.posZ.toFixed(1);
+
+      inpRotX.value = config.model.rotXDeg;
+      document.getElementById('val-rotx').textContent = Math.round(config.model.rotXDeg) + '°';
+
+      inpRotY.value = config.model.rotYDeg;
+      document.getElementById('val-roty').textContent = Math.round(config.model.rotYDeg) + '°';
+
+      inpRotZ.value = config.model.rotZDeg;
+      document.getElementById('val-rotz').textContent = Math.round(config.model.rotZDeg) + '°';
+
+      inpRotSpeed.value = config.model.rotSpeedDegPerSec;
+      valRotSpeed.textContent = formatRotSpeedLabel(config.model.rotSpeedDegPerSec);
+    }
+
+    inpRotSpeed.addEventListener('input', (e) => {
+      config.model.rotSpeedDegPerSec = parseFloat(e.target.value);
+      valRotSpeed.textContent = formatRotSpeedLabel(config.model.rotSpeedDegPerSec);
+    });
+
+    // Double-click turntable slider to snap back to 0°/s (Stopped)
+    inpRotSpeed.addEventListener('dblclick', () => {
+      config.model.rotSpeedDegPerSec = 0;
+      inpRotSpeed.value = 0;
+      valRotSpeed.textContent = formatRotSpeedLabel(0);
+    });
+
+    inpScale.addEventListener('input', (e) => {
+      config.model.scale = parseFloat(e.target.value);
+      document.getElementById('val-scale').textContent = config.model.scale.toFixed(2) + 'x';
+      applyModelTransforms();
+    });
+
+    inpPosX.addEventListener('input', (e) => {
+      config.model.posX = parseFloat(e.target.value);
+      document.getElementById('val-posx').textContent = config.model.posX.toFixed(1);
+      applyModelTransforms();
+    });
+
+    inpPosY.addEventListener('input', (e) => {
+      config.model.posY = parseFloat(e.target.value);
+      document.getElementById('val-posy').textContent = config.model.posY.toFixed(1);
+      applyModelTransforms();
+    });
+
+    inpPosZ.addEventListener('input', (e) => {
+      config.model.posZ = parseFloat(e.target.value);
+      document.getElementById('val-posz').textContent = config.model.posZ.toFixed(1);
+      applyModelTransforms();
+    });
+
+    inpRotX.addEventListener('input', (e) => {
+      config.model.rotXDeg = parseFloat(e.target.value);
+      document.getElementById('val-rotx').textContent = Math.round(config.model.rotXDeg) + '°';
+      applyModelTransforms();
+    });
+
+    inpRotY.addEventListener('input', (e) => {
+      config.model.rotYDeg = parseFloat(e.target.value);
+      document.getElementById('val-roty').textContent = Math.round(config.model.rotYDeg) + '°';
+      applyModelTransforms();
+    });
+
+    inpRotZ.addEventListener('input', (e) => {
+      config.model.rotZDeg = parseFloat(e.target.value);
+      document.getElementById('val-rotz').textContent = Math.round(config.model.rotZDeg) + '°';
+      applyModelTransforms();
+    });
+
+    document.getElementById('btn-reset-model').addEventListener('click', () => {
+      config.model.scale = 1.0;
+      config.model.posX = 0.0;
+      config.model.posY = 0.0;
+      config.model.posZ = -15.0;
+      config.model.rotXDeg = 0;
+      config.model.rotYDeg = 0;
+      config.model.rotZDeg = 0;
+      config.model.rotSpeedDegPerSec = 0;
+      syncModelUI();
+      applyModelTransforms();
+    });
+
+    document.getElementById('btn-clear-model').addEventListener('click', () => {
+      clearCurrentModel(true);
+      inpObj.value = '';
+    });
+
+    // --- 10. Main Animation Loop ---
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const dt = clock.getDelta();
+
+      // Turntable rotation: positive = Clockwise (CW ↻, negative Y rotation in right-handed coords), negative = Counter-Clockwise (CCW ↺, positive Y rotation)
+      if (loadedModelWrapper && config.model.rotSpeedDegPerSec !== 0) {
+        const deltaDeg = -config.model.rotSpeedDegPerSec * dt;
+        config.model.rotYDeg = ((config.model.rotYDeg + deltaDeg + 180) % 360 + 360) % 360 - 180;
+        inpRotY.value = config.model.rotYDeg;
+        document.getElementById('val-roty').textContent = Math.round(config.model.rotYDeg) + '°';
+        applyModelTransforms();
+      }
+
+      // Auto-fade 3D Key Light Indicator after slider release
+      if (keyLightHelperGroup.visible) {
+        if (keyHelperHoldTimer > 0) {
+          keyHelperHoldTimer -= dt;
+        } else {
+          keyHelperAlpha = Math.max(0, keyHelperAlpha - dt * 2.2);
+          helperBulbMat.opacity = keyHelperAlpha * 0.95;
+          helperHaloMat.opacity = keyHelperAlpha * 0.55;
+          helperRayMat.opacity = keyHelperAlpha * 0.75;
+          if (keyHelperAlpha <= 0.001) {
+            keyLightHelperGroup.visible = false;
+          }
+        }
+      }
+
+      processWebcamFrame();
+
+      // Smooth eye trajectory and update asymmetric frustum
+      currentEye.lerp(targetEye, config.lerpFactor);
+      updateOffAxisCamera(camera, currentEye);
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+
+</html>
